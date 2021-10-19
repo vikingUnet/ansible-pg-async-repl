@@ -1,0 +1,126 @@
+---
+# tasks file for postgres_async_replication
+- name: Ensure postgres service running
+  service: name=postgresql state=started
+
+- name: Allow network connections
+  become: yes
+  become_user: postgres
+  postgresql_set:
+    name: listen_addresses
+    value: '*'
+
+- name: Get pg_hba from as query
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    query: "show hba_file"
+  register: sql_query_pg_hba
+
+- name: Get scalar value for pg_hba path
+  set_fact: pg_hba_path="{{ sql_query_pg_hba.query_result[0].hba_file }}"
+
+- name: debug print pg_hba_path 
+  debug: var=pg_hba_path
+
+- name: debug print servers_ips list
+  debug: var="{{ servers_ips | join (',') }}"
+
+- name: Change pg_pba rules for connect from all hosts
+  postgresql_pg_hba:
+    dest: "{{ pg_hba_path }}"
+    contype: host
+    users: all
+    source: 0.0.0.0/0
+    databases: all
+    method: md5
+
+- name: Change pg_hba rules for replication
+  postgresql_pg_hba:
+    dest: "{{ pg_hba_path }}"
+    contype: host
+    users: replica
+    source: "{{ item }}"
+    databases: replication
+    method: md5
+  loop: "{{ servers_ips }}"
+  notify: Restart postgres service
+
+- name: Restart postgres service
+  service: name=postgresql state=restarted
+
+- name: Create role replica
+  become: yes
+  become_user: postgres
+  no_log: true
+  postgresql_user:
+    name: replica
+    role_attr_flags: LOGIN,REPLICATION
+    password: "{{ REPLICA_PWD }}"
+
+- name: Create replication slot
+  become: yes
+  become_user: postgres
+  postgresql_slot:
+    slot_name: replica
+
+- name: Get PGDATA from as query
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    query: "show data_directory"
+  register: sql_query_pgdata
+
+- name: Get scalar value for PGDATA path
+  set_fact: pgdata_path="{{ sql_query_pgdata.query_result[0].data_directory }}"
+
+- name: debug print pgdata_path
+  debug: var=pgdata_path
+
+- name: Stopping replica server
+  service: name=postgresql state=stopped
+  when: inventory_hostname == 'replica'
+
+- name: Add replica password to .pgpass 
+  become: yes
+  become_user: postgres
+  lineinfile:
+    line: "*:*:*:replica:{{ REPLICA_PWD }}"
+    regexp: replica
+    dest: ~/.pgpass
+    create: yes
+    mode: 0600
+  when: inventory_hostname == 'replica'
+
+- name: Remove old replica pgdata
+  command: "rm -rf {{ pgdata_path }}"
+  when: inventory_hostname == 'replica'
+
+- name: Recreate clear pgdata
+  become: yes
+  become_user: postgres  
+  file: 
+    path: "{{ pgdata_path }}"
+    state: directory
+    mode: go-rwx
+  when: ansible_hostname == 'replica'
+
+- name: Copy database master to replica
+  become: yes
+  become_user: postgres
+  command: "pg_basebackup -U replica --pgdata={{ pgdata_path }} -R --slot=replica -h {{ master_ip }}"
+  when: inventory_hostname == 'replica'
+
+- name: Restart postgres service or replica
+  service: name=postgresql state=restarted
+  when: inventory_hostname == 'replica'
+
+- name: Test replication mode is async (must be "sync_state" == "async") (! if error because empty, then must check it handley because it's too fast)
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    query: "select sync_state from pg_stat_replication"
+  register: replication_state
+  when: inventory_hostname == 'master'
+  failed_when: replication_state.query_result[0].sync_state != 'async'
+  ignore_errors: yes

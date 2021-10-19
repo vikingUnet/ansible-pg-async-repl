@@ -1,0 +1,4 @@
+---
+# defaults file for postgres_async_replication
+servers_ips: "{{ groups['all'] | map('extract', hostvars, ['ansible_host']) | list }}"
+master_ip: "{{ hostvars['master']['ansible_host'] }}"

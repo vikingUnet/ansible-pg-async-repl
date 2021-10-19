@@ -1,0 +1,5 @@
+---
+# defaults file for postgres_test
+master_ip: "{{ hostvars['master']['ansible_host'] }}"
+replica_ip: "{{ hostvars['replica']['ansible_host'] }}"
+

@@ -1,0 +1,24 @@
+---
+# tasks file for postgres_install
+- name: Ping all postgres servers
+  ping:
+
+- name: Update and upgrade apt packages
+  apt: 
+    upgrade: yes
+    update_cache: yes
+
+- name: install setfacl support (for securely work with temfiles from postgres user)
+  become: yes
+  apt: pkg=acl
+
+- name: Install postgres packages
+  apt: name={{ item }} update_cache=yes state=latest
+  loop: 
+    - postgresql 
+    - postgresql-contrib
+    - libpq-dev
+    - python3-psycopg2
+
+- name: Ensure postgres is running
+  service: name=postgresql state=started enabled=yes

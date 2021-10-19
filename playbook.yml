@@ -1,0 +1,10 @@
+---
+- name: Create simple asynchronous replication between two postgres servers
+  hosts: all
+  any_errors_fatal: yes
+  become: yes
+  
+  roles:
+  - role: postgres_install
+  - role: postgres_async_replication
+  - role: postgres_test

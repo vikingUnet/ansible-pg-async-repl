@@ -1,0 +1,5 @@
+---
+# handlers file for postgres_async_replication
+- name: Restart postgres service
+  service: name=postgresql state=restarted
+
