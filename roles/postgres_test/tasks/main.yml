@@ -50,7 +50,7 @@
   register: read_data_from_replica
   when: inventory_hostname == 'replica'
 
-- name: Pring last test row from replica
+- name: Print last test row from replica
   debug: var=read_data_from_replica.query_result
   when: inventory_hostname == 'replica'
 
