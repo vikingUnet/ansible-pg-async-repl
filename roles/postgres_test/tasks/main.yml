@@ -1,6 +1,6 @@
 ---
 # tasks file for postgres_test
-- name: Crete test user
+- name: Create test user
   become: yes
   become_user: postgres
   no_log: true
