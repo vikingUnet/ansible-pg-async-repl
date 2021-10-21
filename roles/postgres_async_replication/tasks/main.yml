@@ -44,7 +44,6 @@
     databases: replication
     method: md5
   loop: "{{ servers_ips }}"
-  notify: Restart postgres service
 
 - name: Restart postgres service
   service: name=postgresql state=restarted
